@@ -159,12 +159,6 @@
         <!-- Dashboard Header con Stats y Gráfico -->
         <div class="dashboard-header">
             <div class="stats" id="statsApps"></div>
-            <div class="chart-container">
-                <h3>Estado del Parque de Certificados</h3>
-                <div class="chart-wrapper">
-                    <canvas id="statusChart"></canvas>
-                </div>
-            </div>
         </div>
 
         <div class="controls">
@@ -391,49 +385,6 @@
         renderizarCerts();
         actualizarSelectCertificados();
         actualizarGrafico();
-    }
-
-    function actualizarGrafico() {
-        let vigentes = 0, criticos = 0, vencidos = 0;
-        
-        datos.certificados.forEach(cert => {
-            const estado = calcularEstado(cert.fechaFin);
-            if (!estado.vigente) vencidos++;
-            else if (estado.diasRestantes <= 15) criticos++;
-            else vigentes++;
-        });
-
-        const ctx = document.getElementById('statusChart').getContext('2d');
-        if (chartInstance) chartInstance.destroy();
-
-        chartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Vigentes', 'Críticos (≤15d)', 'Vencidos'],
-                datasets: [{
-                    data: [vigentes, criticos, vencidos],
-                    backgroundColor: ['#107c10', '#d83b01', '#d13438'],
-                    borderWidth: 0,
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false, // CRUCIAL: Permite que el gráfico respete el tamaño del .chart-wrapper
-                plugins: {
-                    legend: { 
-                        position: 'bottom', 
-                        labels: { 
-                            usePointStyle: true, 
-                            padding: 15, 
-                            font: { size: 12 },
-                            boxWidth: 10
-                        } 
-                    }
-                },
-                cutout: '65%'
-            }
-        });
     }
 
     function renderizarApps() {
@@ -718,7 +669,7 @@
         }
     }
 
-    function editarCert(id) {
+   function editarCert(id) {
     const cert = datos.certificados.find(c => c.id === id);
     if (cert) {
         document.getElementById('modalCert').style.display = 'block'; // ⬅️ AGREGAR ESTA LÍNEA
@@ -731,6 +682,7 @@
         document.getElementById('certFin').value = cert.fechaFin;
     }
 }
+
     function guardarCert() {
         const id = document.getElementById('certId').value || Date.now().toString();
         const nuevoCert = {
