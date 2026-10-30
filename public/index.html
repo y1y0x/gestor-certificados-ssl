@@ -656,27 +656,30 @@
     }
 
     function editarApp(id) {
-        const app = datos.aplicaciones.find(a => a.id === id);
-        if (app) {
-            document.getElementById('appId').value = app.id;
-            document.getElementById('appNombre').value = app.nombre;
-            document.getElementById('appServidor').value = app.servidor;
-            document.getElementById('appCertId').value = app.certId;
-            
-            let subdominioLimpio = app.subdominioEspecifico || '';
-            if (app.certId) {
-                const cert = datos.certificados.find(c => c.id === app.certId);
-                if (cert) {
-                    const dominioBase = extraerDominioBase(cert.dominios);
-                    if (subdominioLimpio.endsWith('.' + dominioBase)) {
-                        subdominioLimpio = subdominioLimpio.replace('.' + dominioBase, '');
-                    }
+    const app = datos.aplicaciones.find(a => a.id === id);
+    if (app) {
+        document.getElementById('modalApp').style.display = 'block'; // ⬅️ AGREGAR ESTA LÍNEA
+        document.getElementById('tituloModalApp').innerText = 'Editar Aplicación'; // ⬅️ AGREGAR ESTA LÍNEA
+        
+        document.getElementById('appId').value = app.id;
+        document.getElementById('appNombre').value = app.nombre;
+        document.getElementById('appServidor').value = app.servidor;
+        document.getElementById('appCertId').value = app.certId;
+        
+        let subdominioLimpio = app.subdominioEspecifico || '';
+        if (app.certId) {
+            const cert = datos.certificados.find(c => c.id === app.certId);
+            if (cert) {
+                const dominioBase = extraerDominioBase(cert.dominios);
+                if (subdominioLimpio.endsWith('.' + dominioBase)) {
+                    subdominioLimpio = subdominioLimpio.replace('.' + dominioBase, '');
                 }
             }
-            document.getElementById('appSubdominio').value = subdominioLimpio;
-            actualizarHintSubdominio();
         }
+        document.getElementById('appSubdominio').value = subdominioLimpio;
+        actualizarHintSubdominio();
     }
+}
 
     function guardarApp() {
         const id = document.getElementById('appId').value || Date.now().toString();
@@ -716,16 +719,18 @@
     }
 
     function editarCert(id) {
-        const cert = datos.certificados.find(c => c.id === id);
-        if (cert) {
-            document.getElementById('certId').value = cert.id;
-            document.getElementById('certNombre').value = cert.nombre;
-            document.getElementById('certDominios').value = cert.dominios;
-            document.getElementById('certInicio').value = cert.fechaInicio;
-            document.getElementById('certFin').value = cert.fechaFin;
-        }
+    const cert = datos.certificados.find(c => c.id === id);
+    if (cert) {
+        document.getElementById('modalCert').style.display = 'block'; // ⬅️ AGREGAR ESTA LÍNEA
+        document.getElementById('tituloModalCert').innerText = 'Editar Certificado'; // ⬅️ AGREGAR ESTA LÍNEA
+        
+        document.getElementById('certId').value = cert.id;
+        document.getElementById('certNombre').value = cert.nombre;
+        document.getElementById('certDominios').value = cert.dominios;
+        document.getElementById('certInicio').value = cert.fechaInicio;
+        document.getElementById('certFin').value = cert.fechaFin;
     }
-
+}
     function guardarCert() {
         const id = document.getElementById('certId').value || Date.now().toString();
         const nuevoCert = {
