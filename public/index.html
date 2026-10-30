@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Relacional de Certificados SSL</title>
+    <!-- Chart.js para el gráfico visual -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0078D4;
+            --primary-light: #f0f7ff;
+            --success: #107c10;
+            --warning: #d83b01;
+            --danger: #d13438;
+            --bg: #f4f7f6;
+            --text: #323130;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: var(--bg); color: var(--text); }
+        
+        .container { max-width: 1400px; margin: 30px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+        
+        h1 { color: var(--primary); margin-bottom: 5px; display: flex; align-items: center; gap: 10px; }
+        .subtitle { color: #605e5c; margin-bottom: 25px; font-size: 15px; }
+
+        /* Tabs Modernos */
+        .tabs { display: flex; border-bottom: 2px solid #edebe9; margin-bottom: 25px; gap: 5px; }
+        .tab-btn { padding: 12px 24px; border: none; background: none; cursor: pointer; font-size: 15px; font-weight: 600; color: #605e5c; border-bottom: 3px solid transparent; transition: all 0.2s; border-radius: 8px 8px 0 0; }
+        .tab-btn:hover { color: var(--primary); background-color: var(--primary-light); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); background-color: var(--primary-light); }
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Controles y Búsqueda */
+        .controls { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+        .controls-left { display: flex; gap: 10px; flex-wrap: wrap; }
+        .search-box { position: relative; }
+        .search-box input { padding: 8px 12px 8px 35px; border: 1px solid #c8c6c4; border-radius: 20px; font-size: 14px; width: 250px; transition: all 0.2s; }
+        .search-box input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,120,212,0.2); }
+        .search-box::before { content: "🔍"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0.6; }
+
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .file-input-wrapper input[type=file] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: #106ebe; }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-danger:hover { background-color: #a4262c; }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-success:hover { background-color: #0b5a0b; }
+        .btn-secondary { background-color: #f3f2f1; color: var(--text); border: 1px solid #c8c6c4; }
+        .btn-secondary:hover { background-color: #e1dfdd; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Stats y Gráfico */
+        .dashboard-header { display: grid; grid-template-columns: 1fr 320px; gap: 25px; margin-bottom: 25px; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+        .stat-card { background: white; padding: 20px; border-radius: 10px; border: 1px solid #edebe9; text-align: center; transition: transform 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+        .stat-value { font-size: 28px; font-weight: 700; margin-bottom: 5px; }
+        .stat-label { font-size: 12px; color: #605e5c; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        
+        /* CORRECCIÓN DEL GRÁFICO: Dimensiones fijas para evitar expansión infinita */
+        .chart-container { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            border: 1px solid #edebe9; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            max-height: 320px; 
+        }
+        .chart-container h3 { margin: 0 0 15px 0; font-size: 15px; color: #605e5c; text-align: center; }
+        .chart-wrapper {
+            position: relative;
+            width: 220px;
+            height: 220px;
+        }
+
+        /* Tablas */
+        .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #edebe9; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #edebe9; }
+        th { background-color: #faf9f8; color: #323130; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10; }
+        tr:nth-child(even) { background-color: #fbfbfb; }
+        tr:hover { background-color: var(--primary-light); }
+
+        /* Agrupación */
+        .grupo-header { background-color: #f3f2f1 !important; }
+        .grupo-header td { padding-left: 16px; border-bottom: 2px solid var(--primary); font-weight: 700; color: var(--primary); }
+        .sub-row td { padding-left: 32px; color: #605e5c; font-size: 14px; }
+        
+        /* Estados y Badges */
+        .badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; gap: 4px; }
+        .badge-cert { background-color: #e3f2fd; color: #0d47a1; }
+        .badge-sub { background-color: #f3e5f5; color: #7b1fa2; font-family: monospace; font-size: 13px; }
+        
+        .status-ok { color: var(--success); }
+        .status-warn { color: var(--warning); }
+        .status-danger { color: var(--danger); }
+        .status-expired { background-color: #fde7e9; color: var(--danger); }
+
+        /* Empty State */
+        .empty-state { text-align: center; padding: 40px 20px; color: #605e5c; }
+        .empty-state .icon { font-size: 48px; margin-bottom: 10px; opacity: 0.5; }
+
+        /* Modales */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+        .modal-content { background-color: white; margin: 5vh auto; padding: 30px; width: 90%; max-width: 550px; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: slideDown 0.3s ease; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #323130; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #c8c6c4; border-radius: 6px; font-size: 14px; transition: border 0.2s; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,120,212,0.2); }
+        .form-group small { color: #605e5c; font-size: 12px; display: block; margin-top: 6px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #edebe9; }
+        
+        .input-concatenado { display: flex; align-items: center; gap: 0; }
+        .input-concatenado input { border-radius: 6px 0 0 6px; border-right: none; }
+        .input-concatenado .dominio-base { background: #f3f2f1; padding: 10px 12px; border: 1px solid #c8c6c4; border-radius: 0 6px 6px 0; color: var(--primary); font-weight: 600; white-space: nowrap; font-size: 14px; }
+        .preview-dominio { margin-top: 8px; padding: 10px; background: var(--primary-light); border-radius: 6px; font-size: 13px; color: var(--primary); border-left: 3px solid var(--primary); }
+
+        /* Loading Overlay */
+        #loadingOverlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(3px); z-index: 2000; 
+            justify-content: center; align-items: center; font-size: 16px; font-weight: 600; color: var(--primary); flex-direction: column; gap: 15px;
+        }
+        .spinner {
+            border: 3px solid #f3f2f1; border-top: 3px solid var(--primary); border-radius: 50%;
+            width: 36px; height: 36px; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Sincronizando con Azure Blob Storage...</span>
+</div>
+
+<div class="container">
+    <h1>🛡️ Gestor de Certificados SSL</h1>
+    <p class="subtitle">Modelo Relacional: Certificados independientes asociados a Aplicaciones y Subdominios específicos</p>
+    
+    <div class="tabs">
+        <button class="tab-btn active" onclick="cambiarTab('aplicaciones')">📱 Aplicaciones (Vista Operativa)</button>
+        <button class="tab-btn" onclick="cambiarTab('certificados')">📜 Inventario de Certificados</button>
+    </div>
+
+    <!-- VISTA APLICACIONES -->
+    <div id="tab-aplicaciones" class="tab-content active">
+        <!-- Dashboard Header con Stats y Gráfico -->
+        <div class="dashboard-header">
+            <div class="stats" id="statsApps"></div>
+            <div class="chart-container">
+                <h3>Estado del Parque de Certificados</h3>
+                <div class="chart-wrapper">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="controls-left">
+                <button class="btn btn-primary" onclick="abrirModalApp()">➕ Nueva Aplicación</button>
+                <button class="btn btn-success" onclick="exportarCSV()">📥 Exportar CSV</button>
+                <div class="file-input-wrapper">
+                    <button class="btn btn-secondary">📁 Importar CSV</button>
+                    <input type="file" id="csvFileApp" accept=".csv">
+                </div>
+            </div>
+            <div class="search-box">
+                <input type="text" id="searchApps" placeholder="Buscar aplicación o dominio..." onkeyup="filtrarTabla('tablaApps', this.value)">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table id="tablaApps">
+                <thead>
+                    <tr>
+                        <th>Aplicación / Servidor</th>
+                        <th>Dominio Completo</th>
+                        <th>Certificado Asignado</th>
+                        <th>Vencimiento</th>
+                        <th>Días Rest.</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoTablaApps"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VISTA CERTIFICADOS -->
+    <div id="tab-certificados" class="tab-content">
+        <div class="controls">
+            <div class="controls-left">
+                <button class="btn btn-primary" onclick="abrirModalCert()">➕ Nuevo Certificado</button>
+                <button class="btn btn-secondary" onclick="descargarPlantilla()">⬇️ Plantilla CSV</button>
+            </div>
+            <div class="search-box">
+                <input type="text" id="searchCerts" placeholder="Buscar certificado o dominio..." onkeyup="filtrarTabla('tablaCerts', this.value)">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table id="tablaCerts">
+                <thead>
+                    <tr>
+                        <th>Nombre / Identificador</th>
+                        <th>Dominios / Subdominios</th>
+                        <th>Inicio</th>
+                        <th>Vencimiento</th>
+                        <th>Días Rest.</th>
+                        <th>Estado</th>
+                        <th>Usado por (Apps)</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoTablaCerts"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL APLICACIÓN -->
+<div id="modalApp" class="modal">
+    <div class="modal-content">
+        <h2 id="tituloModalApp" style="margin-top:0; color: var(--primary);">Nueva Aplicación</h2>
+        <input type="hidden" id="appId">
+        <div class="form-group">
+            <label>Nombre de la Aplicación:</label>
+            <input type="text" id="appNombre" placeholder="Ej: Portal de Pagos">
+        </div>
+        <div class="form-group">
+            <label>Servidor / App Service:</label>
+            <input type="text" id="appServidor" placeholder="Ej: app-pagos-prod">
+        </div>
+        <div class="form-group">
+            <label>Certificado Asociado: <span style="color:var(--danger)">*</span></label>
+            <select id="appCertId" onchange="actualizarHintSubdominio()">
+                <option value="">-- Selecciona un certificado --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Subdominio (solo la parte del subdominio):</label>
+            <div class="input-concatenado">
+                <input type="text" id="appSubdominio" placeholder="Ej: pagos" oninput="actualizarPreviewDominio()">
+                <span class="dominio-base" id="dominioBaseDisplay">.empresa.com</span>
+            </div>
+            <div class="preview-dominio" id="previewDominio" style="display:none;">
+                <strong>Resultado:</strong> <span id="previewTexto"></span>
+            </div>
+            <small id="hintDominios">Selecciona un certificado para ver sus dominios disponibles.</small>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="cerrarModales()">Cancelar</button>
+            <button class="btn btn-primary" onclick="guardarApp()">💾 Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CERTIFICADO -->
+<div id="modalCert" class="modal">
+    <div class="modal-content">
+        <h2 id="tituloModalCert" style="margin-top:0; color: var(--primary);">Nuevo Certificado</h2>
+        <input type="hidden" id="certId">
+        <div class="form-group">
+            <label>Nombre / Identificador:</label>
+            <input type="text" id="certNombre" placeholder="Ej: Wildcard Empresa 2024">
+        </div>
+        <div class="form-group">
+            <label>Dominios / Subdominios (separados por coma):</label>
+            <input type="text" id="certDominios" placeholder="Ej: *.empresa.com, empresa.com">
+        </div>
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+                <label>Fecha Inicio:</label>
+                <input type="date" id="certInicio">
+            </div>
+            <div>
+                <label>Fecha Fin (Vencimiento):</label>
+                <input type="date" id="certFin">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="cerrarModales()">Cancelar</button>
+            <button class="btn btn-primary" onclick="guardarCert()">💾 Guardar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // MODELO DE DATOS Y ALMACENAMIENTO (AZURE BLOB)
+    // ==========================================
+    let datos = { certificados: [], aplicaciones: [] };
+    let chartInstance = null;
+
+    function mostrarCargando(mostrar) {
+        document.getElementById('loadingOverlay').style.display = mostrar ? 'flex' : 'none';
+        document.querySelectorAll('.btn').forEach(btn => btn.disabled = mostrar);
+    }
+
+    async function cargarDatos() {
+        mostrarCargando(true);
+        try {
+            const res = await fetch('/api/ssl-data');
+            if (res.ok) {
+                const data = await res.json();
+                datos = {
+                    certificados: Array.isArray(data.certificados) ? data.certificados : [],
+                    aplicaciones: Array.isArray(data.aplicaciones) ? data.aplicaciones : []
+                };
+            } else {
+                alert("Error al cargar los datos desde el servidor.");
+            }
+        } catch (e) {
+            console.error("Error de conexión:", e);
+            alert("No se pudo conectar con el servidor.");
+        } finally {
+            mostrarCargando(false);
+            renderizarTodo();
+        }
+    }
+
+    async function guardarDatos() {
+        mostrarCargando(true);
+        try {
+            const res = await fetch('/api/ssl-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos)
+            });
+            const result = await res.json();
+            if (result.success) {
+                renderizarTodo();
+            } else {
+                alert('Error al guardar: ' + (result.message || 'Desconocido'));
+            }
+        } catch (e) {
+            console.error("Error al guardar:", e);
+            alert("Error de conexión al guardar los datos en Azure.");
+        } finally {
+            mostrarCargando(false);
+        }
+    }
+
+    // ==========================================
+    // LÓGICA DE FECHAS Y ESTADOS
+    // ==========================================
+    function calcularEstado(fechaFinStr) {
+        if (!fechaFinStr) return { diasRestantes: 999, vigente: true, clase: 'status-ok', texto: 'Sin fecha' };
+        const hoy = new Date(); hoy.setHours(0,0,0,0);
+        const fin = new Date(fechaFinStr + "T00:00:00");
+        const diffDays = Math.ceil((fin - hoy) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 0) return { diasRestantes: diffDays, vigente: false, clase: 'status-expired', texto: 'VENCIDO' };
+        if (diffDays <= 15) return { diasRestantes: diffDays, vigente: true, clase: 'status-danger', texto: 'Crítico' };
+        if (diffDays <= 30) return { diasRestantes: diffDays, vigente: true, clase: 'status-warn', texto: 'Atención' };
+        return { diasRestantes: diffDays, vigente: true, clase: 'status-ok', texto: 'Vigente' };
+    }
+
+    function extraerDominioBase(dominiosStr) {
+        if (!dominiosStr) return 'Desconocido';
+        const primerDominio = dominiosStr.split(',')[0].trim().replace(/^(https?:\/\/)?(www\.)?/, '');
+        const dominioLimpio = primerDominio.replace(/^\*\./, '');
+        const partes = dominioLimpio.split('.');
+        return partes.length <= 2 ? dominioLimpio : partes.slice(-2).join('.');
+    }
+
+    function construirDominioCompleto(subdominio, dominiosCert) {
+        if (!subdominio) return '';
+        const dominioBase = extraerDominioBase(dominiosCert);
+        if (subdominio.includes(dominioBase)) return subdominio;
+        return `${subdominio}.${dominioBase}`;
+    }
+
+    // ==========================================
+    // RENDERIZADO Y GRÁFICOS
+    // ==========================================
+    function renderizarTodo() {
+        renderizarApps();
+        renderizarCerts();
+        actualizarSelectCertificados();
+        actualizarGrafico();
+    }
+
+    function actualizarGrafico() {
+        let vigentes = 0, criticos = 0, vencidos = 0;
+        
+        datos.certificados.forEach(cert => {
+            const estado = calcularEstado(cert.fechaFin);
+            if (!estado.vigente) vencidos++;
+            else if (estado.diasRestantes <= 15) criticos++;
+            else vigentes++;
+        });
+
+        const ctx = document.getElementById('statusChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Vigentes', 'Críticos (≤15d)', 'Vencidos'],
+                datasets: [{
+                    data: [vigentes, criticos, vencidos],
+                    backgroundColor: ['#107c10', '#d83b01', '#d13438'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // CRUCIAL: Permite que el gráfico respete el tamaño del .chart-wrapper
+                plugins: {
+                    legend: { 
+                        position: 'bottom', 
+                        labels: { 
+                            usePointStyle: true, 
+                            padding: 15, 
+                            font: { size: 12 },
+                            boxWidth: 10
+                        } 
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+    }
+
+    function renderizarApps() {
+        const tbody = document.getElementById('cuerpoTablaApps');
+        tbody.innerHTML = '';
+        
+        if (datos.aplicaciones.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state"><div class="icon">📭</div>No hay aplicaciones registradas.<br><small>Haz clic en "Nueva Aplicación" para comenzar.</small></td></tr>`;
+            actualizarStats(0, 0, 0, 0);
+            return;
+        }
+
+        const grupos = {};
+        datos.aplicaciones.forEach(app => {
+            const cert = datos.certificados.find(c => c.id === app.certId);
+            const dominioBase = cert ? extraerDominioBase(cert.dominios) : 'Sin Certificado';
+            if (!grupos[dominioBase]) grupos[dominioBase] = [];
+            grupos[dominioBase].push({ app, cert });
+        });
+
+        const gruposArray = Object.keys(grupos).map(key => {
+            const primerCert = grupos[key][0].cert;
+            const estado = primerCert ? calcularEstado(primerCert.fechaFin) : { diasRestantes: 999 };
+            return { dominio: key, items: grupos[key], diasRestantes: estado.diasRestantes };
+        }).sort((a, b) => a.diasRestantes - b.diasRestantes);
+
+        let totalApps = 0, criticos = 0, vencidos = 0;
+
+        gruposArray.forEach(grupo => {
+            const certRef = grupo.items[0].cert;
+            const estado = certRef ? calcularEstado(certRef.fechaFin) : { diasRestantes: 999, clase: '', texto: 'N/A' };
+            
+            if (estado.diasRestantes <= 15 && estado.diasRestantes > 0) criticos++;
+            if (!estado.vigente) vencidos++;
+            totalApps += grupo.items.length;
+
+            const trGrupo = document.createElement('tr');
+            trGrupo.className = 'grupo-header';
+            trGrupo.innerHTML = `
+                <td colspan="7">🌐 Dominio Base: <strong>${grupo.dominio}</strong> | Cert: ${certRef ? certRef.nombre : 'No asignado'} 
+                <span class="badge" style="float:right; background:${estado.vigente ? '#dff6dd' : '#fde7e9'}; color:${estado.vigente ? '#107c10' : '#d13438'}">${estado.texto}</span></td>
+            `;
+            tbody.appendChild(trGrupo);
+
+            grupo.items.forEach(({ app, cert }) => {
+                const dominioCompleto = cert ? construirDominioCompleto(app.subdominioEspecifico, cert.dominios) : 'N/A';
+                const tr = document.createElement('tr');
+                tr.className = 'sub-row';
+                tr.setAttribute('data-search', `${app.nombre} ${app.servidor} ${dominioCompleto}`.toLowerCase());
+                tr.innerHTML = `
+                    <td><strong>${app.nombre}</strong><br><small style="color:#605e5c">${app.servidor}</small></td>
+                    <td>${dominioCompleto ? `<span class="badge badge-sub">${dominioCompleto}</span>` : '<em style="color:#a19f9d">No especificado</em>'}</td>
+                    <td><span class="badge badge-cert">${cert ? cert.nombre : 'Ninguno'}</span></td>
+                    <td>${cert ? cert.fechaFin : '-'}</td>
+                    <td class="${estado.clase}" style="font-weight:700">${cert ? (estado.vigente ? estado.diasRestantes + ' días' : 'Expirado') : '-'}</td>
+                    <td><span class="badge" style="background:${estado.vigente ? '#dff6dd' : '#fde7e9'}; color:${estado.vigente ? '#107c10' : '#d13438'}">${cert ? estado.texto : 'Sin Cert'}</span></td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="editarApp('${app.id}')">✏️</button>
+                        <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="eliminarApp('${app.id}')">🗑️</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+
+        actualizarStats(totalApps, totalApps - criticos - vencidos, criticos, vencidos);
+    }
+
+    function actualizarStats(total, vigentes, criticos, vencidos) {
+        document.getElementById('statsApps').innerHTML = `
+            <div class="stat-card"><div class="stat-value" style="color:var(--primary)">${total}</div><div class="stat-label">Total Apps</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--success)">${vigentes}</div><div class="stat-label">Vigentes</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--warning)">${criticos}</div><div class="stat-label">Críticos</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--danger)">${vencidos}</div><div class="stat-label">Vencidos</div></div>
+        `;
+    }
+
+    function renderizarCerts() {
+        const tbody = document.getElementById('cuerpoTablaCerts');
+        tbody.innerHTML = '';
+        
+        if (datos.certificados.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><div class="icon">📜</div>No hay certificados en el inventario.<br><small>Haz clic en "Nuevo Certificado" para comenzar.</small></td></tr>`;
+            return;
+        }
+
+        datos.certificados.sort((a, b) => calcularEstado(a.fechaFin).diasRestantes - calcularEstado(b.fechaFin).diasRestantes).forEach(cert => {
+            const estado = calcularEstado(cert.fechaFin);
+            const appsUsandolo = datos.aplicaciones
+                .filter(a => a.certId === cert.id)
+                .map(a => {
+                    const dominioCompleto = construirDominioCompleto(a.subdominioEspecifico, cert.dominios);
+                    return `${a.nombre} <small style="color:#7b1fa2">(${dominioCompleto || 'general'})</small>`;
+                })
+                .join('<br>') || '<em style="color:#a19f9d">Ninguna</em>';
+            
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-search', `${cert.nombre} ${cert.dominios}`.toLowerCase());
+            tr.innerHTML = `
+                <td><strong>${cert.nombre}</strong></td>
+                <td><span class="badge badge-sub">${cert.dominios}</span></td>
+                <td>${cert.fechaInicio}</td>
+                <td>${cert.fechaFin}</td>
+                <td class="${estado.clase}" style="font-weight:700">${estado.vigente ? estado.diasRestantes + ' días' : 'Expirado'}</td>
+                <td><span class="badge" style="background:${estado.vigente ? '#dff6dd' : '#fde7e9'}; color:${estado.vigente ? '#107c10' : '#d13438'}">${estado.texto}</span></td>
+                <td><small>${appsUsandolo}</small></td>
+                <td>
+                    <button class="btn btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="editarCert('${cert.id}')">✏️</button>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="eliminarCert('${cert.id}')">🗑️</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // ==========================================
+    // BÚSQUEDA Y FILTRADO
+    // ==========================================
+    function filtrarTabla(tablaId, texto) {
+        const filtro = texto.toLowerCase();
+        const filas = document.querySelectorAll(`#${tablaId} tbody tr`);
+        
+        filas.forEach(fila => {
+            if (fila.classList.contains('grupo-header')) {
+                fila.style.display = 'none';
+                return;
+            }
+            const textoFila = fila.getAttribute('data-search') || '';
+            if (textoFila.includes(filtro)) {
+                fila.style.display = '';
+            } else {
+                fila.style.display = 'none';
+            }
+        });
+    }
+
+    // ==========================================
+    // FUNCIONES AUXILIARES DE UI
+    // ==========================================
+    function actualizarSelectCertificados() {
+        const select = document.getElementById('appCertId');
+        const valorActual = select.value;
+        select.innerHTML = '<option value="">-- Selecciona un certificado --</option>';
+        datos.certificados.forEach(c => {
+            const estado = calcularEstado(c.fechaFin);
+            const option = document.createElement('option');
+            option.value = c.id;
+            option.text = `${c.nombre} (Vence: ${c.fechaFin} - ${estado.texto})`;
+            select.appendChild(option);
+        });
+        select.value = valorActual;
+        actualizarHintSubdominio();
+    }
+
+    function actualizarHintSubdominio() {
+        const certId = document.getElementById('appCertId').value;
+        const hint = document.getElementById('hintDominios');
+        const dominioBaseDisplay = document.getElementById('dominioBaseDisplay');
+        
+        if (certId) {
+            const cert = datos.certificados.find(c => c.id === certId);
+            if (cert) {
+                const dominioBase = extraerDominioBase(cert.dominios);
+                dominioBaseDisplay.textContent = '.' + dominioBase;
+                hint.innerHTML = `💡 Dominios disponibles: <strong>${cert.dominios}</strong>`;
+                hint.style.color = 'var(--primary)';
+                actualizarPreviewDominio();
+            }
+        } else {
+            dominioBaseDisplay.textContent = '.dominio.com';
+            hint.innerHTML = 'Selecciona un certificado para ver sus dominios disponibles.';
+            hint.style.color = '#605e5c';
+            document.getElementById('previewDominio').style.display = 'none';
+        }
+    }
+
+    function actualizarPreviewDominio() {
+        const certId = document.getElementById('appCertId').value;
+        const subdominio = document.getElementById('appSubdominio').value.trim();
+        const preview = document.getElementById('previewDominio');
+        const previewTexto = document.getElementById('previewTexto');
+        
+        if (certId && subdominio) {
+            const cert = datos.certificados.find(c => c.id === certId);
+            if (cert) {
+                previewTexto.textContent = construirDominioCompleto(subdominio, cert.dominios);
+                preview.style.display = 'block';
+            }
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+    function cambiarTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    function cerrarModales() {
+        document.querySelectorAll('.modal').forEach(el => el.style.display = 'none');
+    }
+
+    // ==========================================
+    // ACCIONES CRUD
+    // ==========================================
+    function abrirModalApp(id = null) {
+        document.getElementById('modalApp').style.display = 'block';
+        document.getElementById('tituloModalApp').innerText = id ? 'Editar Aplicación' : 'Nueva Aplicación';
+        if (!id) {
+            document.getElementById('appId').value = '';
+            document.getElementById('appNombre').value = '';
+            document.getElementById('appServidor').value = '';
+            document.getElementById('appCertId').value = '';
+            document.getElementById('appSubdominio').value = '';
+            document.getElementById('previewDominio').style.display = 'none';
+            actualizarHintSubdominio();
+        }
+    }
+
+    function editarApp(id) {
+        const app = datos.aplicaciones.find(a => a.id === id);
+        if (app) {
+            document.getElementById('appId').value = app.id;
+            document.getElementById('appNombre').value = app.nombre;
+            document.getElementById('appServidor').value = app.servidor;
+            document.getElementById('appCertId').value = app.certId;
+            
+            let subdominioLimpio = app.subdominioEspecifico || '';
+            if (app.certId) {
+                const cert = datos.certificados.find(c => c.id === app.certId);
+                if (cert) {
+                    const dominioBase = extraerDominioBase(cert.dominios);
+                    if (subdominioLimpio.endsWith('.' + dominioBase)) {
+                        subdominioLimpio = subdominioLimpio.replace('.' + dominioBase, '');
+                    }
+                }
+            }
+            document.getElementById('appSubdominio').value = subdominioLimpio;
+            actualizarHintSubdominio();
+        }
+    }
+
+    function guardarApp() {
+        const id = document.getElementById('appId').value || Date.now().toString();
+        const nuevaApp = {
+            id: id, nombre: document.getElementById('appNombre').value.trim(),
+            servidor: document.getElementById('appServidor').value.trim(),
+            certId: document.getElementById('appCertId').value,
+            subdominioEspecifico: document.getElementById('appSubdominio').value.trim()
+        };
+        if (!nuevaApp.nombre || !nuevaApp.certId) { alert('Nombre y Certificado son obligatorios'); return; }
+
+        const idx = datos.aplicaciones.findIndex(a => a.id === id);
+        if (idx >= 0) datos.aplicaciones[idx] = nuevaApp;
+        else datos.aplicaciones.push(nuevaApp);
+        
+        guardarDatos();
+        cerrarModales();
+    }
+
+    function eliminarApp(id) {
+        if (confirm('¿Eliminar esta aplicación?')) {
+            datos.aplicaciones = datos.aplicaciones.filter(a => a.id !== id);
+            guardarDatos();
+        }
+    }
+
+    function abrirModalCert(id = null) {
+        document.getElementById('modalCert').style.display = 'block';
+        document.getElementById('tituloModalCert').innerText = id ? 'Editar Certificado' : 'Nuevo Certificado';
+        if (!id) {
+            document.getElementById('certId').value = '';
+            document.getElementById('certNombre').value = '';
+            document.getElementById('certDominios').value = '';
+            document.getElementById('certInicio').value = '';
+            document.getElementById('certFin').value = '';
+        }
+    }
+
+    function editarCert(id) {
+        const cert = datos.certificados.find(c => c.id === id);
+        if (cert) {
+            document.getElementById('certId').value = cert.id;
+            document.getElementById('certNombre').value = cert.nombre;
+            document.getElementById('certDominios').value = cert.dominios;
+            document.getElementById('certInicio').value = cert.fechaInicio;
+            document.getElementById('certFin').value = cert.fechaFin;
+        }
+    }
+
+    function guardarCert() {
+        const id = document.getElementById('certId').value || Date.now().toString();
+        const nuevoCert = {
+            id: id, nombre: document.getElementById('certNombre').value.trim(),
+            dominios: document.getElementById('certDominios').value.trim(),
+            fechaInicio: document.getElementById('certInicio').value,
+            fechaFin: document.getElementById('certFin').value
+        };
+        if (!nuevoCert.nombre || !nuevoCert.fechaFin) { alert('Nombre y Fecha Fin son obligatorios'); return; }
+
+        const idx = datos.certificados.findIndex(c => c.id === id);
+        if (idx >= 0) datos.certificados[idx] = nuevoCert;
+        else datos.certificados.push(nuevoCert);
+        
+        guardarDatos();
+        cerrarModales();
+    }
+
+    function eliminarCert(id) {
+        const enUso = datos.aplicaciones.some(a => a.certId === id);
+        if (enUso) {
+            alert('⚠️ No se puede eliminar: Este certificado está asociado a una o más aplicaciones.');
+            return;
+        }
+        if (confirm('¿Eliminar este certificado del inventario?')) {
+            datos.certificados = datos.certificados.filter(c => c.id !== id);
+            guardarDatos();
+        }
+    }
+
+    // ==========================================
+    // CSV
+    // ==========================================
+    function parseCSV(text) {
+        return text.split('\n').filter(l => l.trim() !== '').map(line => {
+            const result = []; let current = ''; let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+                else current += char;
+            }
+            result.push(current.trim());
+            return result;
+        });
+    }
+
+    document.getElementById('csvFileApp').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const rows = parseCSV(ev.target.result);
+                if (rows.length < 2) { alert('CSV vacío'); return; }
+                const headers = rows[0].map(h => h.toLowerCase().replace(/\s+/g, ''));
+                
+                rows.slice(1).forEach(r => {
+                    const appNombre = r[headers.indexOf('aplicacion')];
+                    if (!appNombre) return;
+                    
+                    const certNombre = r[headers.indexOf('nombrecertificado')] || 'Certificado Importado';
+                    const dominios = r[headers.indexOf('dominioscert')] || r[headers.indexOf('dominios')] || '';
+                    const fechaInicio = r[headers.indexOf('fechainicio')] || '';
+                    const fechaFin = r[headers.indexOf('fechafin')] || '';
+                    const subdominioEsp = r[headers.indexOf('subdominioespecifico')] || '';
+
+                    let cert = datos.certificados.find(c => c.nombre === certNombre && c.dominios === dominios);
+                    if (!cert) {
+                        cert = { id: 'cert_' + Date.now() + Math.random().toString(36).substr(2,5), nombre: certNombre, dominios, fechaInicio, fechaFin };
+                        datos.certificados.push(cert);
+                    }
+
+                    let subdominioLimpio = subdominioEsp;
+                    const dominioBase = extraerDominioBase(dominios);
+                    if (subdominioLimpio.endsWith('.' + dominioBase)) {
+                        subdominioLimpio = subdominioLimpio.replace('.' + dominioBase, '');
+                    }
+
+                    datos.aplicaciones.push({
+                        id: 'app_' + Date.now() + Math.random().toString(36).substr(2,5),
+                        nombre: appNombre, servidor: r[headers.indexOf('servidor')] || '',
+                        certId: cert.id, subdominioEspecifico: subdominioLimpio
+                    });
+                });
+                guardarDatos();
+                alert('Importación exitosa');
+            } catch (err) { alert('Error al procesar CSV'); console.error(err); }
+        };
+        reader.readAsText(file, 'UTF-8');
+        e.target.value = '';
+    });
+
+    function exportarCSV() {
+        if (datos.aplicaciones.length === 0) { alert('No hay datos'); return; }
+        const headers = ["Aplicacion", "Servidor", "SubdominioEspecifico", "DominioCompleto", "NombreCertificado", "DominiosCert", "FechaInicio", "FechaFin"];
+        const rows = [headers];
+        
+        datos.aplicaciones.forEach(app => {
+            const cert = datos.certificados.find(c => c.id === app.certId) || {};
+            const dominioCompleto = cert.dominios ? construirDominioCompleto(app.subdominioEspecifico, cert.dominios) : '';
+            rows.push([app.nombre, app.servidor, app.subdominioEspecifico || '', dominioCompleto, cert.nombre || 'N/A', cert.dominios || 'N/A', cert.fechaInicio || 'N/A', cert.fechaFin || 'N/A']);
+        });
+
+        const csv = rows.map(r => r.map(val => {
+            const s = (val || '').toString();
+            return (s.includes('"') || s.includes(',') || s.includes('\n')) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(',')).join('\n');
+        
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'gestor_ssl_completo.csv'; a.click();
+    }
+
+    function descargarPlantilla() {
+        const csv = "Aplicacion,Servidor,SubdominioEspecifico,DominioCompleto,NombreCertificado,DominiosCert,FechaInicio,FechaFin\nPortal Pagos,app-prod-01,pagos,pagos.empresa.com,Wildcard Empresa 2024,*.empresa.com, empresa.com,2023-01-01,2024-01-01";
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'plantilla.csv'; a.click();
+    }
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) cerrarModales();
+    }
+    
+    window.onload = cargarDatos;
+</script>
+</body>
+</html>
