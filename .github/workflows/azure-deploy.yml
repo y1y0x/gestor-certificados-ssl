@@ -25,6 +25,6 @@ jobs:
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'gestor-certificados-ssl'
+          app-name: 'gcloudyn-certificate'
           publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
           package: .
